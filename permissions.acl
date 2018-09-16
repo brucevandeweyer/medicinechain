@@ -1,0 +1,87 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * Access control rules for drugs
+ */
+
+rule Admin {
+  description:  "Admin gets access to all resources"
+  participant: "org.hyperledger.composer.system.NetworkAdmin"
+  operation: ALL
+  resource: "org.taak2.drugs.*"
+  action: ALLOW
+}
+
+rule ManufacturerCanCreateDrug {
+  description: "Manufacturer can only create drugs (and no transfers)"
+  participant(u): "org.taak2.drugs.User"
+  operation: CREATE
+  resource: "org.taak2.drugs.Drug"
+  condition: (u.userType == 'manufacturer')
+  action: ALLOW
+}
+
+rule TraderCanCreateTransfer {
+  description: "Distributer, pharmacist and patient can only create transfers (and no drugs)"
+  participant(u): "org.taak2.drugs.User"
+  operation: CREATE
+  resource: "org.taak2.drugs.Transfer"
+  condition: (u.userType == 'distributer' || u.userType == 'pharmacist' || u.userType == 'patient')
+  action: ALLOW
+}
+
+rule UsersCanOnlyReadDrugsOneStepUp {
+  description: "Users can only read and update drugs they own or are owned by user one step up the distribution chain"
+  participant(u): "org.taak2.drugs.User"
+  operation: READ, UPDATE 
+  resource(r): "org.taak2.drugs.Drug"
+  condition: ((u.userType == 'distributer' && r.currentOwner.userType == 'manufacturer') 
+  || (u.userType == 'pharmacist' && r.currentOwner.userType == 'distributer') 
+  || (u.userType == 'patient' && r.currentOwner.userType == 'pharmacist')
+  || r.currentOwner.getIdentifier() == u.getIdentifier())
+  action: ALLOW
+}
+
+rule UserCanReadAllUsers {
+  description: "Users can read all users"
+  participant: "org.taak2.drugs.User"
+  operation: READ 
+  resource: "org.taak2.drugs.User"
+  action: ALLOW
+}
+
+rule UserCannotReadAnyTransfers {
+  description: "Users cannot read any transfers"
+  participant: "org.taak2.drugs.User"
+  operation: READ 
+  resource: "org.taak2.drugs.Transfer"
+  action: DENY
+}
+
+rule UsersCannotReadAnyHistoricalTransactions {
+  description: "Users cannot read any historical transactions"
+  participant: "org.taak2.drugs.User"
+  operation: READ
+  resource: "org.hyperledger.composer.system.HistorianRecord"
+  action: DENY
+}
+
+rule SystemACL {
+  description:  "System ACL to permit all access"
+  participant: "ANY"
+  operation: ALL
+  resource: "org.hyperledger.composer.system.**"
+  action: ALLOW
+}
